@@ -1,7 +1,9 @@
 @gatewayIp = 4.153.67.73
 @hostHeader = api.apim-samples.contoso.com
-@subscriptionKey = REPLACE_WITH_APIM_SUBSCRIPTION_KEY
+@subscriptionKey = ee10360d9afb444f968810011d457fd1
 @baseUrl = https://{{gatewayIp}}
+@echoMessage = Hello Girish I am echoing back to you.
+@echoMessageEncoded = Hello%20Girish%20I%20am%20echoing%20back%20to%20you.
 
 ### 1) App Gateway / APIM health probe (no subscription key)
 GET {{baseUrl}}/status-0123456789abcdef
@@ -27,7 +29,104 @@ GET {{baseUrl}}/aca-pool
 Host: {{hostHeader}}
 Ocp-Apim-Subscription-Key: {{subscriptionKey}}
 
-### 6) Optional: Echo API (if present in your APIM instance)
+### 6) Echo API - GET resource
 GET {{baseUrl}}/echo/resource?param1=sample
 Host: {{hostHeader}}
 Ocp-Apim-Subscription-Key: {{subscriptionKey}}
+
+> {%
+client.test('Echo GET resource returns success', function () {
+	client.assert([200, 204].includes(response.status), `Unexpected status: ${response.status}`)
+})
+%}
+
+### 7) Echo API - GET resource by id
+GET {{baseUrl}}/echo/resource/123?param1=sample
+Host: {{hostHeader}}
+Ocp-Apim-Subscription-Key: {{subscriptionKey}}
+
+> {%
+client.test('Echo GET by id returns success', function () {
+	client.assert([200, 204].includes(response.status), `Unexpected status: ${response.status}`)
+})
+%}
+
+### 8) Echo API - POST create resource
+POST {{baseUrl}}/echo/resource?param1=created-by-rest-client
+Host: {{hostHeader}}
+Content-Type: application/json
+Ocp-Apim-Subscription-Key: {{subscriptionKey}}
+
+{
+	"name": "sample-item",
+	"source": "smoke-tests.rest"
+}
+
+> {%
+client.test('Echo POST returns success', function () {
+	client.assert([200, 201, 202].includes(response.status), `Unexpected status: ${response.status}`)
+})
+%}
+
+### 9) Echo API - PUT modify resource
+PUT {{baseUrl}}/echo/resource?param1=updated-by-rest-client
+Host: {{hostHeader}}
+Content-Type: application/json
+Ocp-Apim-Subscription-Key: {{subscriptionKey}}
+
+{
+	"name": "sample-item-updated",
+	"source": "smoke-tests.rest"
+}
+
+> {%
+client.test('Echo PUT returns success', function () {
+	client.assert([200, 201, 202, 204].includes(response.status), `Unexpected status: ${response.status}`)
+})
+%}
+
+### 10) Echo API - HEAD resource
+HEAD {{baseUrl}}/echo/resource
+Host: {{hostHeader}}
+Ocp-Apim-Subscription-Key: {{subscriptionKey}}
+
+> {%
+client.test('Echo HEAD returns success', function () {
+	client.assert([200, 204].includes(response.status), `Unexpected status: ${response.status}`)
+})
+%}
+
+### 11) Echo API - DELETE resource
+DELETE {{baseUrl}}/echo/resource
+Host: {{hostHeader}}
+Ocp-Apim-Subscription-Key: {{subscriptionKey}}
+
+> {%
+client.test('Echo DELETE returns success', function () {
+	client.assert([200, 202, 204].includes(response.status), `Unexpected status: ${response.status}`)
+})
+%}
+
+### 12) Echo API - custom message echo
+GET {{baseUrl}}/echo/resource?param1={{echoMessageEncoded}}
+Host: {{hostHeader}}
+Ocp-Apim-Subscription-Key: {{subscriptionKey}}
+
+> {%
+client.test('Echo custom message returns success', function () {
+	client.assert([200, 204].includes(response.status), `Unexpected status: ${response.status}`)
+})
+
+client.test('Echo response headers contain custom message', function () {
+	const originalUrl = response.headers.valueOf('x-original-url') || ''
+	const backendUrl = response.headers.valueOf('x-backend-url') || ''
+	const expectedPlain = 'Hello Girish I am echoing back to you.'
+	const expectedEncoded = 'Hello%20Girish%20I%20am%20echoing%20back%20to%20you.'
+	const headerJoined = `${originalUrl} ${backendUrl}`
+
+	client.assert(
+		headerJoined.includes(expectedPlain) || headerJoined.includes(expectedEncoded),
+		`Expected message not found in echo headers. x-original-url='${originalUrl}', x-backend-url='${backendUrl}'`
+	)
+})
+%}
