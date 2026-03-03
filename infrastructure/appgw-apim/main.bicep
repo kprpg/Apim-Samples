@@ -334,6 +334,14 @@ module vnetModule '../../shared/bicep/modules/vnet/v1/vnet.bicep' = {
           networkSecurityGroup: {
             id: nsgAppGw.id
           }
+          delegations: [
+            {
+              name: 'Microsoft.Network/applicationGateways'
+              properties: {
+                serviceName: 'Microsoft.Network/applicationGateways'
+              }
+            }
+          ]
         }
       }
     ]
