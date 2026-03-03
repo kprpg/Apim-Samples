@@ -1,0 +1,33 @@
+@gatewayIp = 4.153.67.73
+@hostHeader = api.apim-samples.contoso.com
+@subscriptionKey = REPLACE_WITH_APIM_SUBSCRIPTION_KEY
+@baseUrl = https://{{gatewayIp}}
+
+### 1) App Gateway / APIM health probe (no subscription key)
+GET {{baseUrl}}/status-0123456789abcdef
+Host: {{hostHeader}}
+
+### 2) Base Hello World API (APIM root API)
+GET {{baseUrl}}/
+Host: {{hostHeader}}
+Ocp-Apim-Subscription-Key: {{subscriptionKey}}
+
+### 3) Hello World (ACA Backend 1)
+GET {{baseUrl}}/aca-1
+Host: {{hostHeader}}
+Ocp-Apim-Subscription-Key: {{subscriptionKey}}
+
+### 4) Hello World (ACA Backend 2)
+GET {{baseUrl}}/aca-2
+Host: {{hostHeader}}
+Ocp-Apim-Subscription-Key: {{subscriptionKey}}
+
+### 5) Hello World (ACA Pool)
+GET {{baseUrl}}/aca-pool
+Host: {{hostHeader}}
+Ocp-Apim-Subscription-Key: {{subscriptionKey}}
+
+### 6) Optional: Echo API (if present in your APIM instance)
+GET {{baseUrl}}/echo/resource?param1=sample
+Host: {{hostHeader}}
+Ocp-Apim-Subscription-Key: {{subscriptionKey}}
