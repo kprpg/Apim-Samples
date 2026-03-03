@@ -15,7 +15,10 @@
       "username": "vscode",
       "uid": "1000",
       "gid": "1000"
-    }
+    },
+    "ghcr.io/devcontainers/features/azure-cli:1": {
+    "version": "latest"
+   }
   },
   "customizations": {
     "vscode": {
