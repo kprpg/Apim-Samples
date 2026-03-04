@@ -1,0 +1,28 @@
+<!--
+    SSE pass-through policy.
+
+    Key point: buffer-response="false" on forward-request.
+    This allows chunks from the backend to be relayed immediately to the client.
+-->
+<policies>
+    <inbound>
+        <base />
+        <set-backend-service backend-id="{backend_id}" />
+        <set-header name="Accept" exists-action="override">
+            <value>text/event-stream</value>
+        </set-header>
+        <rewrite-uri template="/sse" />
+    </inbound>
+    <backend>
+        <forward-request buffer-response="false" timeout="60" />
+    </backend>
+    <outbound>
+        <base />
+        <set-header name="Cache-Control" exists-action="override">
+            <value>no-cache</value>
+        </set-header>
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>

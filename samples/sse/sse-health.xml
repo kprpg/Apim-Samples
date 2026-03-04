@@ -1,0 +1,17 @@
+<!-- Simple non-streaming health probe policy to the same backend -->
+<policies>
+    <inbound>
+        <base />
+        <set-backend-service backend-id="{backend_id}" />
+        <rewrite-uri template="/health" />
+    </inbound>
+    <backend>
+        <forward-request timeout="30" />
+    </backend>
+    <outbound>
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>

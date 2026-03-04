@@ -5,6 +5,7 @@ Module for making requests to Azure API Management endpoints with consistent log
 import json
 import time
 from typing import Any
+from dataclasses import dataclass
 
 import requests
 import urllib3
@@ -22,7 +23,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # ------------------------------
 
 
-class ApimRequests:
+class _ApimRequestsBase:
     """
     Methods for making requests to the Azure API Management service.
     Provides single and multiple request helpers with consistent logging.
@@ -258,6 +259,173 @@ class ApimRequests:
             session.close()
 
         return api_runs
+
+
+@dataclass
+class SseEvent:
+    event: str | None
+    event_id: str | None
+    data: str
+    received_at_s: float
+
+
+class ApimRequests(_ApimRequestsBase):
+    def sseGet(
+        self,
+        path: str,
+        *,
+        msg: str | None = None,
+        headers: dict[str, str] | None = None,
+        max_events: int = 5,
+        max_seconds: int = 20,
+        connect_timeout_s: int = 10,
+        read_timeout_s: int = 30,
+        printResponse: bool = True,
+    ) -> dict[str, Any]:
+        """Connect to an SSE endpoint and read a small number of events.
+
+        This helper is intentionally lightweight and is designed for notebooks where we
+        want to observe streaming behavior (for example, APIM buffer-response on/off).
+
+        Returns a dict with timing + captured events:
+        - status_code
+        - content_type
+        - time_to_first_byte_s
+        - time_to_first_event_s
+        - events (list of SseEvent dicts)
+        - raw_lines (first N lines)
+        """
+
+        if msg:
+            print_message(msg, blank_above=True)
+
+        if not path.startswith('/'):
+            path = '/' + path
+
+        url = self._url + path
+        merged_headers = self.headers.copy()
+        merged_headers['Accept'] = 'text/event-stream'
+        if headers:
+            merged_headers.update(headers)
+
+        print_info(f'GET {url} (SSE)')
+        print_info(merged_headers)
+
+        start = time.time()
+        first_byte_at: float | None = None
+        first_event_at: float | None = None
+
+        events: list[SseEvent] = []
+        raw_lines: list[str] = []
+        current_event: dict[str, str | None] = {'event': None, 'id': None, 'data': ''}
+
+        def flush_event(now: float) -> None:
+            nonlocal first_event_at
+            data = (current_event.get('data') or '').rstrip('\n')
+            if not data:
+                # Ignore empty frames (heartbeats)
+                current_event['event'] = None
+                current_event['id'] = None
+                current_event['data'] = ''
+                return
+
+            if first_event_at is None:
+                first_event_at = now
+
+            events.append(
+                SseEvent(
+                    event=current_event.get('event'),
+                    event_id=current_event.get('id'),
+                    data=data,
+                    received_at_s=now - start,
+                )
+            )
+
+            current_event['event'] = None
+            current_event['id'] = None
+            current_event['data'] = ''
+
+        try:
+            with requests.get(
+                url,
+                headers=merged_headers,
+                verify=False,
+                stream=True,
+                timeout=(connect_timeout_s, read_timeout_s),
+            ) as response:
+                if printResponse:
+                    self._print_response_code(response)
+
+                content_type = response.headers.get('Content-Type', '')
+
+                for line in response.iter_lines(decode_unicode=True, chunk_size=1):
+                    now = time.time()
+
+                    if first_byte_at is None:
+                        first_byte_at = now
+
+                    if now - start > max_seconds:
+                        break
+
+                    if line is None:
+                        continue
+
+                    # Keep some raw lines for debugging
+                    if len(raw_lines) < 200:
+                        raw_lines.append(line)
+
+                    if line == '':
+                        flush_event(now)
+                        if len(events) >= max_events:
+                            break
+                        continue
+
+                    # Comment heartbeat
+                    if line.startswith(':'):
+                        continue
+
+                    if line.startswith('event:'):
+                        current_event['event'] = line.split(':', 1)[1].strip()
+                        continue
+
+                    if line.startswith('id:'):
+                        current_event['id'] = line.split(':', 1)[1].strip()
+                        continue
+
+                    if line.startswith('data:'):
+                        data_part = line.split(':', 1)[1].lstrip()
+                        current_event['data'] = (current_event.get('data') or '') + data_part + '\n'
+                        continue
+
+                # If stream ended naturally, try to flush the last event
+                flush_event(time.time())
+
+                return {
+                    'status_code': response.status_code,
+                    'content_type': content_type,
+                    'time_to_first_byte_s': (first_byte_at - start) if first_byte_at else None,
+                    'time_to_first_event_s': (first_event_at - start) if first_event_at else None,
+                    'events': [
+                        {
+                            'event': e.event,
+                            'id': e.event_id,
+                            'data': e.data,
+                            'received_at_s': e.received_at_s,
+                        }
+                        for e in events
+                    ],
+                    'raw_lines': raw_lines,
+                }
+
+        except requests.exceptions.RequestException as e:
+            print_error(f'Error making SSE request: {e}')
+            return {
+                'error': str(e),
+                'time_to_first_byte_s': (first_byte_at - start) if first_byte_at else None,
+                'time_to_first_event_s': (first_event_at - start) if first_event_at else None,
+                'events': [],
+                'raw_lines': raw_lines,
+            }
 
     def _print_response(self, response) -> None:
         """

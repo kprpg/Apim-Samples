@@ -1,0 +1,28 @@
+<!--
+    SSE policy with response buffering enabled.
+
+    This is intentionally "bad" for SSE: APIM buffers response chunks (8KB by default)
+    and only flushes to the client when the buffer fills or the stream ends.
+-->
+<policies>
+    <inbound>
+        <base />
+        <set-backend-service backend-id="{backend_id}" />
+        <set-header name="Accept" exists-action="override">
+            <value>text/event-stream</value>
+        </set-header>
+        <rewrite-uri template="/sse" />
+    </inbound>
+    <backend>
+        <forward-request buffer-response="true" timeout="60" />
+    </backend>
+    <outbound>
+        <base />
+        <set-header name="Cache-Control" exists-action="override">
+            <value>no-cache</value>
+        </set-header>
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>
