@@ -3,6 +3,11 @@
 
     This is intentionally "bad" for SSE: APIM buffers response chunks (8KB by default)
     and only flushes to the client when the buffer fills or the stream ends.
+
+    NOTE: Some APIM stacks may still stream `text/event-stream` even when
+    `buffer-response="true"` is set. The `set-body` in outbound below forces
+    the full response to be buffered before sending anything to the client,
+    making the difference between the GOOD and BUFFERED operations observable.
 -->
 <policies>
     <inbound>
@@ -18,6 +23,7 @@
     </backend>
     <outbound>
         <base />
+        <set-body>@(context.Response.Body.As<string>(preserveContent: true))</set-body>
         <set-header name="Cache-Control" exists-action="override">
             <value>no-cache</value>
         </set-header>
